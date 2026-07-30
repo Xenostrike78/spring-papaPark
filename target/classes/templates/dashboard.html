@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SmartPark</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div class="app-layout">
+        <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+        
+        <div class="main-content">
+            <div th:replace="~{fragments/header :: header}"></div>
+            
+            <div class="content-wrapper">
+                <div class="stats-grid">
+                    <div class="stat-card glass-panel card">
+                        <div class="stat-icon">🚗</div>
+                        <div class="stat-details">
+                            <div class="stat-label">Total Vehicles</div>
+                            <div class="stat-value" id="statVehicles">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel card">
+                        <div class="stat-icon">🅿️</div>
+                        <div class="stat-details">
+                            <div class="stat-label">Active Sessions</div>
+                            <div class="stat-value" id="statActiveSessions">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel card">
+                        <div class="stat-icon">💸</div>
+                        <div class="stat-details">
+                            <div class="stat-label">Total Spent</div>
+                            <div class="stat-value" id="statSpent">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel card">
+                        <div class="stat-icon">👛</div>
+                        <div class="stat-details">
+                            <div class="stat-label">Wallet Balance</div>
+                            <div class="stat-value" id="statWallet">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card glass-panel" style="margin-top: 24px;">
+                    <div class="card-header">
+                        <h3>Recent Parking Sessions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Session ID</th>
+                                        <th>Vehicle</th>
+                                        <th>Slot</th>
+                                        <th>Entry Time</th>
+                                        <th>Status</th>
+                                        <th>Payment</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentSessionsTable">
+                                    <tr><td colspan="6" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="alert-container"></div>
+    <script th:src="@{/js/app.js}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            requireAuth();
+            const user = api.getUser();
+            if (user) {
+                document.getElementById('pageTitle').innerText = `Welcome, ${user.fullName || user.email}`;
+                document.getElementById('userGreeting').innerText = `Hello, ${user.fullName || user.email}`;
+            }
+            
+            try {
+                const stats = await api.get('/api/dashboard/stats');
+                document.getElementById('statVehicles').innerText = stats.totalVehicles || 0;
+                document.getElementById('statActiveSessions').innerText = stats.activeSessions || 0;
+                document.getElementById('statSpent').innerText = formatCurrency(stats.totalSpent || 0);
+                document.getElementById('statWallet').innerText = formatCurrency(stats.walletBalance || 0);
+
+                const sessions = await api.get('/api/parking/sessions/history');
+                const tbody = document.getElementById('recentSessionsTable');
+                tbody.innerHTML = '';
+                
+                if (sessions && sessions.length > 0) {
+                    // Show last 5
+                    sessions.slice(0, 5).forEach(session => {
+                        const statusClass = session.status === 'ACTIVE' ? 'badge-success' : 'badge-info';
+                        const payClass = session.paymentStatus === 'PAID' ? 'badge-success' : 'badge-warning';
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>#${session.id}</td>
+                            <td><strong>${session.vehicleNumber}</strong></td>
+                            <td>${session.slotNumber}</td>
+                            <td>${formatDate(session.entryTime)}</td>
+                            <td><span class="badge ${statusClass}">${session.status}</span></td>
+                            <td><span class="badge ${payClass}">${session.paymentStatus}</span></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 40px; color: var(--text-muted);">No sessions yet. Start your first parking session!</td></tr>';
+                }
+            } catch (error) {
+                showAlert('Error loading dashboard data', 'danger');
+                console.error(error);
+            }
+        });
+    </script>
+</body>
+</html>

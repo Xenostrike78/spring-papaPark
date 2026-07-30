@@ -1,0 +1,29 @@
+<div th:fragment="sidebar" class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <span class="logo-icon">🅿️</span>
+    <span class="brand-name">SmartPark</span>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-section">
+      <span class="nav-section-title">MAIN</span>
+      <a th:href="@{/dashboard}" class="nav-link">📊 Dashboard</a>
+      <a th:href="@{/vehicles}" class="nav-link">🚗 My Vehicles</a>
+      <a th:href="@{/parking}" class="nav-link">🅿️ Parking</a>
+      <a th:href="@{/payments}" class="nav-link">💳 Payments</a>
+      <a th:href="@{/wallet}" class="nav-link">👛 Wallet</a>
+    </div>
+    <div class="nav-section" id="adminSection" style="display: none;">
+      <span class="nav-section-title">ADMIN</span>
+      <a th:href="@{/admin/slots}" class="nav-link">📍 Manage Slots</a>
+      <a th:href="@{/admin/users}" class="nav-link">👥 All Users</a>
+      <a th:href="@{/admin/sessions}" class="nav-link">📋 Active Sessions</a>
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div id="sidebarUserName" class="user-name">Loading...</div>
+      <div id="sidebarUserRole" class="user-role">Role</div>
+    </div>
+    <button class="logout-btn" onclick="logout()">Logout</button>
+  </div>
+</div>

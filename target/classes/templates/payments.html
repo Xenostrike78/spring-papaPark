@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payments - SmartPark</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div class="app-layout">
+        <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+        
+        <div class="main-content">
+            <div th:replace="~{fragments/header :: header}"></div>
+            
+            <div class="content-wrapper">
+                <div class="stats-grid" style="margin-bottom: 24px;">
+                    <div class="stat-card glass-panel card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-details">
+                            <div class="stat-label">Total Paid</div>
+                            <div class="stat-value" id="totalPaid">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel card">
+                        <div class="stat-icon">⏳</div>
+                        <div class="stat-details">
+                            <div class="stat-label">Pending Amount</div>
+                            <div class="stat-value" id="pendingAmount" style="color: var(--warning);">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card glass-panel">
+                    <div class="card-header">
+                        <h3>Payment History</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Session ID</th>
+                                        <th>Transaction ID</th>
+                                        <th>Type</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="paymentsTable">
+                                    <tr><td colspan="6" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="alert-container"></div>
+    <script th:src="@{/js/app.js}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            requireAuth();
+            document.getElementById('pageTitle').innerText = 'Payments';
+            loadPayments();
+        });
+
+        async function loadPayments() {
+            try {
+                const [payments, stats] = await Promise.all([
+                    api.get('/api/payments/history'),
+                    api.get('/api/payments/stats')
+                ]);
+
+                if (stats) {
+                    document.getElementById('totalPaid').innerText = formatCurrency(stats.totalPaid || 0);
+                    document.getElementById('pendingAmount').innerText = formatCurrency(stats.pendingAmount || 0);
+                }
+
+                const tbody = document.getElementById('paymentsTable');
+                tbody.innerHTML = '';
+
+                if (payments && payments.length > 0) {
+                    payments.forEach(p => {
+                        const statusClass = p.paymentStatus === 'PAID' ? 'badge-success' : 
+                                           p.paymentStatus === 'FAILED' ? 'badge-danger' : 'badge-warning';
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${formatDate(p.paymentDate)}</td>
+                                <td>#${p.sessionId || '-'}</td>
+                                <td style="font-size: 0.8rem; color: var(--text-muted);">${(p.transactionId || '-').substring(0, 16)}...</td>
+                                <td>${p.paymentType || '-'}</td>
+                                <td><strong>${formatCurrency(p.amount)}</strong></td>
+                                <td><span class="badge ${statusClass}">${p.paymentStatus}</span></td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 40px; color: var(--text-muted);">No payment history found.</td></tr>';
+                }
+            } catch (error) {
+                console.error(error);
+                showAlert('Error loading payments', 'danger');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Users - SmartPark</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div class="app-layout">
+        <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+        
+        <div class="main-content">
+            <div th:replace="~{fragments/header :: header}"></div>
+            
+            <div class="content-wrapper">
+                <div class="card glass-panel">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                        <h3>👥 User Management</h3>
+                        <div>
+                            <input type="text" class="form-input" id="searchBox" placeholder="Search users by name, email, phone..." onkeyup="filterUsers()" style="width: 300px; margin: 0;">
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Phone</th>
+                                        <th>Wallet</th>
+                                        <th>Role</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTable">
+                                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="alert-container"></div>
+    <script th:src="@{/js/app.js}"></script>
+    <script>
+        let allUsers = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            requireAdmin();
+            document.getElementById('pageTitle').innerText = 'All Users';
+            loadUsers();
+        });
+
+        async function loadUsers() {
+            try {
+                allUsers = await api.get('/api/admin/users');
+                renderUsers(allUsers);
+            } catch (error) {
+                console.error(error);
+                showAlert('Error loading users', 'danger');
+            }
+        }
+
+        function renderUsers(users) {
+            const tbody = document.getElementById('usersTable');
+            tbody.innerHTML = '';
+            
+            if (users && users.length > 0) {
+                users.forEach(u => {
+                    const statusClass = u.enabled ? 'badge-success' : 'badge-danger';
+                    const statusText = u.enabled ? 'ACTIVE' : 'BLOCKED';
+                    
+                    const actionBtn = u.enabled 
+                        ? `<button class="btn btn-sm btn-danger" onclick="toggleUserStatus(${u.id}, false)">Block</button>`
+                        : `<button class="btn btn-sm btn-primary" onclick="toggleUserStatus(${u.id}, true)">Unblock</button>`;
+                        
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>#${u.id}</td>
+                            <td><strong>${u.fullName}</strong></td>
+                            <td>${u.email}</td>
+                            <td>${u.phone}</td>
+                            <td>${formatCurrency(u.walletBalance)}</td>
+                            <td><span class="badge ${u.role === 'ROLE_ADMIN' ? 'badge-warning' : 'badge-info'}">${u.role.replace('ROLE_', '')}</span></td>
+                            <td><span class="badge ${statusClass}">${statusText}</span></td>
+                            <td>
+                                ${u.role !== 'ROLE_ADMIN' ? actionBtn : '<span class="badge badge-info">System Admin</span>'}
+                            </td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 30px; color: var(--text-muted);">No users found.</td></tr>';
+            }
+        }
+
+        function filterUsers() {
+            const term = document.getElementById('searchBox').value.toLowerCase();
+            const filtered = allUsers.filter(u => 
+                (u.fullName && u.fullName.toLowerCase().includes(term)) || 
+                (u.email && u.email.toLowerCase().includes(term)) ||
+                (u.phone && u.phone.includes(term))
+            );
+            renderUsers(filtered);
+        }
+
+        async function toggleUserStatus(userId, enable) {
+            const action = enable ? 'unblock' : 'block';
+            if (confirm(`Are you sure you want to ${action} this user?`)) {
+                try {
+                    await api.post(`/api/admin/users/${userId}/status?enable=${enable}`);
+                    showAlert(`User ${action}ed successfully`, 'success');
+                    loadUsers();
+                } catch (error) {
+                    showAlert(error.message || `Failed to ${action} user`, 'danger');
+                }
+            }
+        }
+    </script>
+</body>
+</html>

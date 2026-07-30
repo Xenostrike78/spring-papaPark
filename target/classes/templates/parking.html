@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parking - SmartPark</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div class="app-layout">
+        <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+        
+        <div class="main-content">
+            <div th:replace="~{fragments/header :: header}"></div>
+            
+            <div class="content-wrapper">
+                <!-- Start Parking Section -->
+                <div class="card glass-panel" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h3>🅿️ Start Parking</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="startParkingForm" onsubmit="startParking(event)" style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+                            <div class="form-group" style="flex: 1; min-width: 200px; margin: 0;">
+                                <label class="form-label">Select Vehicle</label>
+                                <select class="form-select" id="vehicleSelect" required>
+                                    <option value="">Loading vehicles...</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1; min-width: 200px; margin: 0;">
+                                <label class="form-label">Select Slot</label>
+                                <select class="form-select" id="slotSelect" required>
+                                    <option value="">Loading slots...</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="height: 46px; min-width: 140px;">🚀 Start Session</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Active Sessions -->
+                <div class="card glass-panel" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h3>🟢 Active Sessions</h3>
+                        <button class="btn btn-secondary btn-sm" onclick="loadSessions()">↻ Refresh</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Session ID</th>
+                                        <th>Vehicle</th>
+                                        <th>Slot</th>
+                                        <th>Entry Time</th>
+                                        <th>Duration</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="activeSessionsTable">
+                                    <tr><td colspan="6" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Past Sessions -->
+                <div class="card glass-panel">
+                    <div class="card-header">
+                        <h3>📋 Parking History</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Session ID</th>
+                                        <th>Vehicle</th>
+                                        <th>Slot</th>
+                                        <th>Entry Time</th>
+                                        <th>Exit Time</th>
+                                        <th>Duration</th>
+                                        <th>Amount</th>
+                                        <th>Payment</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pastSessionsTable">
+                                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="paymentModalOverlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>💳 Pay for Session</h3>
+                <button class="btn-close" onclick="hideModal('paymentModalOverlay')">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="paymentAmount" style="font-size: 1.5rem; font-weight: 700; color: var(--accent-primary); margin-bottom: 16px;">₹0.00</p>
+                <input type="hidden" id="paySessionId">
+                <div class="form-group">
+                    <label class="form-label">Payment Method</label>
+                    <select class="form-select" id="paymentType">
+                        <option value="WALLET">💰 Wallet</option>
+                        <option value="PAY_NOW">💳 Pay Now</option>
+                        <option value="PAY_LATER">⏰ Pay Later</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="hideModal('paymentModalOverlay')">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmPayment()">Confirm Payment</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="alert-container"></div>
+    <script th:src="@{/js/app.js}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            requireAuth();
+            document.getElementById('pageTitle').innerText = 'Parking';
+            loadFormData();
+            loadSessions();
+        });
+
+        async function loadFormData() {
+            try {
+                const [vehicles, slots] = await Promise.all([
+                    api.get('/api/vehicles'),
+                    api.get('/api/parking/slots/available')
+                ]);
+
+                const vehicleSelect = document.getElementById('vehicleSelect');
+                vehicleSelect.innerHTML = '<option value="">-- Select a vehicle --</option>';
+                if (vehicles && vehicles.length > 0) {
+                    vehicles.forEach(v => {
+                        vehicleSelect.innerHTML += `<option value="${v.id}">${v.vehicleNumber} (${v.vehicleType})</option>`;
+                    });
+                } else {
+                    vehicleSelect.innerHTML = '<option value="">No vehicles registered</option>';
+                }
+
+                const slotSelect = document.getElementById('slotSelect');
+                slotSelect.innerHTML = '<option value="">-- Select a slot --</option>';
+                if (slots && slots.length > 0) {
+                    slots.forEach(s => {
+                        slotSelect.innerHTML += `<option value="${s.id}">${s.slotNumber} (Zone ${s.zone} - ${s.vehicleType})</option>`;
+                    });
+                } else {
+                    slotSelect.innerHTML = '<option value="">No slots available</option>';
+                }
+            } catch (error) {
+                showAlert('Error loading form data: ' + error.message, 'danger');
+            }
+        }
+
+        async function loadSessions() {
+            try {
+                const [allSessions] = await Promise.all([
+                    api.get('/api/parking/sessions/history')
+                ]);
+
+                const active = allSessions ? allSessions.filter(s => s.status === 'ACTIVE') : [];
+                const past = allSessions ? allSessions.filter(s => s.status !== 'ACTIVE') : [];
+
+                const activeTable = document.getElementById('activeSessionsTable');
+                activeTable.innerHTML = '';
+                if (active.length > 0) {
+                    active.forEach(s => {
+                        const entryTime = new Date(s.entryTime);
+                        const duration = calcDuration(entryTime, new Date());
+                        activeTable.innerHTML += `
+                            <tr>
+                                <td>#${s.id}</td>
+                                <td><strong>${s.vehicleNumber}</strong></td>
+                                <td>${s.slotNumber}</td>
+                                <td>${formatDate(s.entryTime)}</td>
+                                <td>${duration}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger" onclick="endSession(${s.id})">🔴 End Parking</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    activeTable.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-muted);">No active sessions right now.</td></tr>';
+                }
+
+                const pastTable = document.getElementById('pastSessionsTable');
+                pastTable.innerHTML = '';
+                if (past.length > 0) {
+                    past.forEach(s => {
+                        const statusClass = s.paymentStatus === 'PAID' ? 'badge-success' : 'badge-warning';
+                        const amount = s.totalAmount ? formatCurrency(s.totalAmount) : '-';
+                        pastTable.innerHTML += `
+                            <tr>
+                                <td>#${s.id}</td>
+                                <td><strong>${s.vehicleNumber}</strong></td>
+                                <td>${s.slotNumber}</td>
+                                <td>${formatDate(s.entryTime)}</td>
+                                <td>${s.exitTime ? formatDate(s.exitTime) : '-'}</td>
+                                <td>${s.totalHours != null ? s.totalHours + 'h' : '-'}</td>
+                                <td>${amount}</td>
+                                <td>
+                                    ${s.paymentStatus === 'PENDING' && s.totalAmount
+                                        ? `<button class="btn btn-sm btn-primary" onclick="openPayment(${s.id}, ${s.totalAmount})">Pay Now</button>`
+                                        : `<span class="badge ${statusClass}">${s.paymentStatus}</span>`}
+                                </td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    pastTable.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px; color: var(--text-muted);">No parking history yet.</td></tr>';
+                }
+            } catch (error) {
+                console.error(error);
+                showAlert('Error loading sessions', 'danger');
+            }
+        }
+
+        function calcDuration(start, end) {
+            const diffMs = end - start;
+            const hours = Math.floor(diffMs / 3600000);
+            const minutes = Math.floor((diffMs % 3600000) / 60000);
+            return `${hours}h ${minutes}m`;
+        }
+
+        async function startParking(e) {
+            e.preventDefault();
+            const vehicleId = document.getElementById('vehicleSelect').value;
+            const slotId = document.getElementById('slotSelect').value;
+
+            if (!vehicleId || !slotId) {
+                showAlert('Please select a vehicle and slot', 'warning');
+                return;
+            }
+
+            try {
+                await api.post(`/api/parking/start?vehicleId=${vehicleId}&slotId=${slotId}`);
+                showAlert('🅿️ Parking session started!', 'success');
+                document.getElementById('startParkingForm').reset();
+                loadFormData();
+                loadSessions();
+            } catch (error) {
+                showAlert(error.message || 'Failed to start parking', 'danger');
+            }
+        }
+
+        async function endSession(sessionId) {
+            if (confirm('End this parking session?')) {
+                try {
+                    await api.post(`/api/parking/end/${sessionId}`);
+                    showAlert('Session ended. Please pay the bill.', 'success');
+                    loadFormData();
+                    loadSessions();
+                } catch (error) {
+                    showAlert(error.message || 'Failed to end session', 'danger');
+                }
+            }
+        }
+
+        function openPayment(sessionId, amount) {
+            document.getElementById('paySessionId').value = sessionId;
+            document.getElementById('paymentAmount').innerText = formatCurrency(amount);
+            showModal('paymentModalOverlay');
+        }
+
+        async function confirmPayment() {
+            const sessionId = document.getElementById('paySessionId').value;
+            const paymentType = document.getElementById('paymentType').value;
+            try {
+                await api.post(`/api/payments/process?sessionId=${sessionId}&paymentType=${paymentType}`);
+                showAlert('Payment processed successfully!', 'success');
+                hideModal('paymentModalOverlay');
+                loadSessions();
+            } catch (error) {
+                showAlert(error.message || 'Payment failed', 'danger');
+            }
+        }
+    </script>
+</body>
+</html>
